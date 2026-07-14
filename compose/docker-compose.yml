@@ -1,0 +1,209 @@
+# =============================================================
+# Mastodon Production — Docker Compose
+# Server: AWS t3.small (2 vCPU, 2 GB RAM + 2 GB swap)
+# Domain: mastodon.dpdns.org
+# =============================================================
+
+version: "3.8"
+
+services:
+
+  # ── PostgreSQL 14 ────────────────────────────────────────────
+  db:
+    image: postgres:14-alpine
+    container_name: mastodon_db
+    restart: always
+    shm_size: 256mb
+    networks:
+      - internal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB:       mastodon_production
+      POSTGRES_USER:     mastodon
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # Tuned for 2 GB RAM instance
+    command: >
+      postgres
+      -c max_connections=100
+      -c shared_buffers=256MB
+      -c effective_cache_size=512MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mastodon -d mastodon_production"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Redis 7 ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mastodon_redis
+    restart: always
+    networks:
+      - internal
+    volumes:
+      - redis_data:/data
+    # Limit Redis to 256 MB — prevents OOMKill on t3.small
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ── Tor + Privoxy (federation with .onion instances) ─────────
+  tor:
+    image: sirboops/tor
+    container_name: mastodon_tor
+    restart: always
+    networks:
+      - external
+      - internal
+
+  privoxy:
+    image: sirboops/privoxy
+    container_name: mastodon_privoxy
+    restart: always
+    networks:
+      - external
+      - internal
+    depends_on:
+      - tor
+
+  # ── Mastodon web (Puma) ───────────────────────────────────────
+  web:
+    image: ${ECR_WEB_IMAGE}
+    container_name: mastodon_web
+    restart: always
+    command: bundle exec puma -C config/puma.rb
+    networks:
+      - external
+      - internal
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - mastodon_public:/mastodon/public/system
+    env_file:
+      - .env.production
+    environment:
+      # Override for single-instance performance tuning
+      WEB_CONCURRENCY: "1"
+      MAX_THREADS: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── Mastodon streaming (Node.js WebSocket) ───────────────────
+  streaming:
+    image: ${ECR_STREAMING_IMAGE}
+    container_name: mastodon_streaming
+    restart: always
+    command: node ./streaming/index.js
+    networks:
+      - external
+      - internal
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:4000/api/v1/streaming/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Sidekiq (background jobs) ────────────────────────────────
+  sidekiq:
+    image: ${ECR_WEB_IMAGE}
+    container_name: mastodon_sidekiq
+    restart: always
+    command: bundle exec sidekiq
+    networks:
+      - external
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - mastodon_public:/mastodon/public/system
+    env_file:
+      - .env.production
+    environment:
+      SIDEKIQ_CONCURRENCY: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]idekiq' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── Nginx reverse proxy + Let's Encrypt TLS ──────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: mastodon_nginx
+    restart: always
+    networks:
+      - external
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    depends_on:
+      - web
+      - streaming
+
+  # ── Certbot — Let's Encrypt certificate management ───────────
+  certbot:
+    image: certbot/certbot
+    container_name: mastodon_certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    # Renew certificates every 12 hours — Let's Encrypt renews when <30 days left
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  mastodon_public:
+    driver: local
+  certbot_www:
+    driver: local
+  certbot_certs:
+    driver: local
+
+networks:
+  external:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true   # no internet access — DB and Redis isolated
