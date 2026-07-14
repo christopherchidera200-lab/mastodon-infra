@@ -1,0 +1,144 @@
+name: "Security & Drift Detection"
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  secret-scan:
+    name: "Scan for Leaked Secrets"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  drift-detection:
+    name: "Detect Infrastructure Drift"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: mastodon-drift-${{ github.run_number }}
+
+      - name: Write SSH public key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/mastodon_key.pub
+
+      - name: Terraform Init
+        working-directory: terraform/envs/prod
+        run: terraform init
+
+      - name: Check for drift
+        id: drift
+        working-directory: terraform/envs/prod
+        run: |
+          terraform plan \
+            -detailed-exitcode -no-color \
+            -var="aws_region=us-east-1" \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
+            -var="ssh_key_name=mastodon-key" \
+            -var="ssh_public_key_path=$HOME/.ssh/mastodon_key.pub" \
+            -var="instance_type=t3.small" \
+            -var="mastodon_domain=${{ secrets.MASTODON_DOMAIN }}" \
+            -var="mastodon_email=${{ secrets.MASTODON_EMAIL }}" \
+            -var="mastodon_version=${{ secrets.MASTODON_VERSION }}" \
+            -var="github_repo=${{ secrets.GITHUB_REPO }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}"
+        continue-on-error: true
+
+      - name: Alert on drift
+        if: steps.drift.outputs.exitcode == '2'
+        run: |
+          echo "Infrastructure drift detected — AWS resources don't match Terraform code"
+          echo "Run terraform apply to reconcile"
+          exit 1
+
+  version-check:
+    name: "Check for New Mastodon Version"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check latest Mastodon release
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/mastodon/mastodon/releases/latest \
+            | grep '"tag_name"' | sed 's/.*"tag_name": "\(.*\)".*/\1/')
+          CURRENT=$(grep "mastodon_version" terraform/envs/prod/terraform.tfvars \
+            | sed 's/.*= "\(.*\)"/\1/')
+
+          echo "Current: ${CURRENT}"
+          echo "Latest:  ${LATEST}"
+
+          if [ "${CURRENT}" != "${LATEST}" ]; then
+            echo "NEW VERSION AVAILABLE: ${LATEST}"
+            echo "Go to: Actions → Upgrade — Mastodon Version → Run workflow"
+          else
+            echo "Running latest version ✅"
+          fi
+
+  ec2-health-check:
+    name: "EC2 Instance Health"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: mastodon-health-${{ github.run_number }}
+
+      - name: Check EC2 instance state
+        run: |
+          STATE=$(aws ec2 describe-instances \
+            --filters "Name=tag:Project,Values=mastodon" \
+            --query "Reservations[].Instances[].State.Name" \
+            --output text)
+          echo "EC2 state: ${STATE}"
+          [ "${STATE}" = "running" ] || echo "WARNING: EC2 instance is not running"
+
+      - name: Check Mastodon endpoints
+        run: |
+          DOMAIN="${{ secrets.MASTODON_DOMAIN }}"
+          for path in "/health" "/api/v1/streaming/health" "/api/v1/instance"; do
+            STATUS=$(curl -sk -o /dev/null -w "%{http_code}" https://${DOMAIN}${path})
+            echo "${path}: HTTP ${STATUS}"
+          done

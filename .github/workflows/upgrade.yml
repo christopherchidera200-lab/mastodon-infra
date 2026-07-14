@@ -1,0 +1,85 @@
+name: "Upgrade — Mastodon Version"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mastodon_version:
+        description: "Version to upgrade to (e.g. v4.7.0)"
+        required: true
+        type: string
+      dry_run:
+        description: "Dry run — validate only, no changes"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+jobs:
+  upgrade:
+    name: "Pull, Push, Deploy"
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: mastodon-upgrade-${{ github.run_number }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image variables
+        id: vars
+        run: |
+          VERSION="${{ github.event.inputs.mastodon_version }}"
+          ECR="${{ steps.ecr.outputs.registry }}"
+          echo "version=$VERSION"                              >> $GITHUB_OUTPUT
+          echo "web_ecr=${ECR}/mastodon/web:${VERSION}"       >> $GITHUB_OUTPUT
+          echo "streaming_ecr=${ECR}/mastodon/streaming:${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Pull images from GHCR
+        run: |
+          docker pull ghcr.io/mastodon/mastodon:${{ steps.vars.outputs.version }}
+          docker pull ghcr.io/mastodon/mastodon-streaming:${{ steps.vars.outputs.version }}
+
+      - name: Validate images
+        run: |
+          docker run --rm ghcr.io/mastodon/mastodon:${{ steps.vars.outputs.version }} bundle exec rails --version
+          docker run --rm ghcr.io/mastodon/mastodon-streaming:${{ steps.vars.outputs.version }} node --version
+          echo "Images validated ✅"
+
+      - name: Push to ECR
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          docker tag ghcr.io/mastodon/mastodon:${{ steps.vars.outputs.version }} ${{ steps.vars.outputs.web_ecr }}
+          docker push ${{ steps.vars.outputs.web_ecr }}
+          docker tag ghcr.io/mastodon/mastodon-streaming:${{ steps.vars.outputs.version }} ${{ steps.vars.outputs.streaming_ecr }}
+          docker push ${{ steps.vars.outputs.streaming_ecr }}
+
+      - name: Deploy upgrade to EC2
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/mastodon_key
+          chmod 600 ~/.ssh/mastodon_key
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+          ssh -i ~/.ssh/mastodon_key ubuntu@${{ secrets.EC2_PUBLIC_IP }} << REMOTE
+            bash /opt/mastodon/scripts/04-upgrade.sh ${{ steps.vars.outputs.version }}
+          REMOTE
+
+      - name: Dry run summary
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "=== DRY RUN — no changes made ==="
+          echo "Would upgrade to: ${{ steps.vars.outputs.version }}"
+          echo "Images validated successfully"

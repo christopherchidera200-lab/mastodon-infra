@@ -1,0 +1,36 @@
+# Terraform secrets — NEVER commit
+terraform/envs/prod/terraform.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+tfplan
+
+# Keys and certificates
+*.pem
+*.key
+mastodon_key
+mastodon_key.pub
+
+# Mastodon secrets
+.env.production
+*KEEP-SAFE*
+mastodon-secrets*
+
+# SSH config
+.ssh/
+*.kubeconfig
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs
+*.log
