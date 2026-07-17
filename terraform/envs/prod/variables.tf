@@ -7,4 +7,7 @@ variable "mastodon_domain"     { type = string }
 variable "mastodon_email"      { type = string }
 variable "mastodon_version"    { type = string }
 variable "github_repo"         { type = string }
-variable "db_password"         { type = string, sensitive = true }
+variable "db_password" {
+  type      = string
+  sensitive = true
+}

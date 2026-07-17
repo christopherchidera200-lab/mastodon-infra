@@ -10,13 +10,14 @@ set -euo pipefail
 # ── FILL IN THESE VALUES (from terraform output) ─────────────
 AWS_ACCOUNT_ID="873871686800"
 AWS_REGION="us-east-1"
-AWS_ACCESS_KEY_ID="REPLACE_ME"           # terraform output aws_access_key_id
-AWS_SECRET_ACCESS_KEY="REPLACE_ME"       # terraform output -raw aws_secret_access_key
-S3_BUCKET="REPLACE_ME"                   # terraform output s3_bucket_name
-S3_ALIAS_HOST="REPLACE_ME"              # terraform output cloudfront_domain
-SMTP_LOGIN="REPLACE_ME"                  # terraform output ses_smtp_username
-SMTP_PASSWORD="REPLACE_ME"              # terraform output -raw ses_smtp_password
-DB_PASSWORD="REPLACE_ME"                # same as db_password in terraform.tfvars
+AWS_ACCESS_KEY_ID="AKIA4W5WPXSIHCQIPBMR"           # terraform output aws_access_key_id
+AWS_SECRET_ACCESS_KEY="Kq3j3duqS7Cm+deFsnwEKzCPc56xDTdalWf1aIrU"       # terraform output -raw aws_secret_access_key
+S3_BUCKET="mastodon-media-a1aa3081"                   # terraform output s3_bucket_name
+S3_ALIAS_HOST="d2vdneyktx6iep.cloudfront.net"              # terraform output cloudfront_domain
+SMTP_LOGIN="AKIA4W5WPXSIIUHUE3L4"                  # terraform output ses_smtp_username
+SMTP_PASSWORD="BNlvAXleFwb/vesFJPbSC8mKLG+T+CWAwzu/hZvwkq2D"              # terraform output -raw ses_smtp_password
+DB_PASSWORD="Chrisnwolisa29."          
+export DB_PASSWORD
 MASTODON_VERSION="v4.6.2"
 DOMAIN="mastodon.dpdns.org"
 ADMIN_EMAIL="christopherchidera200@gmail.com"
@@ -24,7 +25,7 @@ ADMIN_EMAIL="christopherchidera200@gmail.com"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 ECR_WEB_IMAGE="${ECR_REGISTRY}/mastodon/web:${MASTODON_VERSION}"
 ECR_STREAMING_IMAGE="${ECR_REGISTRY}/mastodon/streaming:${MASTODON_VERSION}"
-
+export ECR_WEB_IMAGE ECR_STREAMING_IMAGE
 echo "============================================"
 echo "Mastodon Deployment — Script 02"
 echo "Domain: ${DOMAIN}"
@@ -56,10 +57,10 @@ echo "Images in ECR ✅"
 echo "[3/9] Generating Mastodon application secrets..."
 SECRET_KEY_BASE=$(docker run --rm "${ECR_WEB_IMAGE}" bundle exec rails secret)
 
-AR_KEYS=$(docker run --rm "${ECR_WEB_IMAGE}" bin/rails db:encryption:init 2>/dev/null)
-AR_PRIMARY_KEY=$(echo "${AR_KEYS}"         | grep "primary_key:"          | awk '{print $2}')
-AR_DETERMINISTIC_KEY=$(echo "${AR_KEYS}"   | grep "deterministic_key:"    | awk '{print $2}')
-AR_KEY_DERIVATION_SALT=$(echo "${AR_KEYS}" | grep "key_derivation_salt:"  | awk '{print $2}')
+AR_KEYS=$(docker run --rm "${ECR_WEB_IMAGE}" bin/rails db:encryption:init)
+AR_PRIMARY_KEY=$(echo "${AR_KEYS}"         | grep "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="         | cut -d= -f2)
+AR_DETERMINISTIC_KEY=$(echo "${AR_KEYS}"   | grep "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY="   | cut -d= -f2)
+AR_KEY_DERIVATION_SALT=$(echo "${AR_KEYS}" | grep "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=" | cut -d= -f2)
 
 VAPID_KEYS=$(docker run --rm "${ECR_WEB_IMAGE}" bundle exec rails mastodon:webpush:generate_vapid_key)
 VAPID_PRIVATE_KEY=$(echo "${VAPID_KEYS}" | grep "VAPID_PRIVATE_KEY" | cut -d= -f2)
@@ -87,7 +88,7 @@ LOCAL_DOMAIN=${DOMAIN}
 RAILS_ENV=production
 NODE_ENV=production
 RAILS_LOG_TO_STDOUT=true
-RAILS_SERVE_STATIC_FILES=false
+RAILS_SERVE_STATIC_FILES=true
 
 SECRET_KEY_BASE=${SECRET_KEY_BASE}
 ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${AR_PRIMARY_KEY}
@@ -150,26 +151,42 @@ ECR_WEB_IMAGE=${ECR_WEB_IMAGE}
 ECR_STREAMING_IMAGE=${ECR_STREAMING_IMAGE}
 COMPOSEENV
 
+# Create the .env file Docker Compose actually reads for ${...} substitution
+# (env_file: on services only injects vars INSIDE containers — this is separate)
+cat > /opt/mastodon/compose/.env << ENVFILE
+ECR_WEB_IMAGE=${ECR_WEB_IMAGE}
+ECR_STREAMING_IMAGE=${ECR_STREAMING_IMAGE}
+DB_PASSWORD=${DB_PASSWORD}
+ENVFILE
+chmod 600 /opt/mastodon/compose/.env
+
 echo "Docker Compose ready ✅"
 
 # ── Step 6: Issue TLS certificate (HTTP must work first) ──────
-echo "[6/9] Starting nginx for Let's Encrypt ACME challenge..."
+echo "[6/9] Starting nginx in bootstrap mode (HTTP only, no cert yet)..."
 cd /opt/mastodon/compose
 
-# Start nginx with HTTP only first (no cert yet)
+# Swap in the bootstrap config (no SSL block, so nginx can start with zero certs)
+cp nginx/nginx.conf nginx/nginx-full.conf.bak
+cp nginx/nginx-bootstrap.conf nginx/nginx.conf
+
 docker compose up -d nginx
 sleep 10
 
 echo "Requesting Let's Encrypt certificate for ${DOMAIN}..."
-docker compose run --rm certbot certonly \
+docker compose run --rm --entrypoint certbot certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "${ADMIN_EMAIL}" \
   --agree-tos \
   --no-eff-email \
-  -d "${DOMAIN}"
-echo "TLS certificate issued ✅"
+  -d "${DOMAIN}"echo "TLS certificate issued ✅"
 
+# Swap the real SSL-enabled config back in now that certs exist
+echo "Switching nginx to full HTTPS config..."
+cp nginx/nginx-full.conf.bak nginx/nginx.conf
+docker compose restart nginx
+echo "Nginx running with HTTPS ✅"
 # ── Step 7: Initialise database ───────────────────────────────
 echo "[7/9] Starting database and running migrations..."
 docker compose up -d db redis

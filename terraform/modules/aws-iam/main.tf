@@ -105,6 +105,29 @@ resource "aws_iam_user_policy" "mastodon_app" {
         Effect = "Allow"
         Action = ["ses:SendEmail","ses:SendRawEmail"]
         Resource = "*"
+      },
+      {
+        Sid      = "ECRPull"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECRPullRepos"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage"
+        ]
+        Resource = [
+          "arn:aws:ecr:us-east-1:873871686800:repository/mastodon/web",
+          "arn:aws:ecr:us-east-1:873871686800:repository/mastodon/streaming"
+        ]
       }
     ]
   })
