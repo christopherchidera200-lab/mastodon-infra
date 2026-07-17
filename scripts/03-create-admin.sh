@@ -18,15 +18,11 @@ echo "============================================"
 cd /opt/mastodon/compose
 
 # Create account and confirm email in one step
-docker compose exec web bundle exec rails mastodon:create_account \
-  USERNAME="${ADMIN_USERNAME}" \
-  EMAIL="${ADMIN_EMAIL}" \
-  CONFIRMED=true
-
-# Grant admin privileges
-docker compose exec web bundle exec rails mastodon:make_admin \
-  USERNAME="${ADMIN_USERNAME}"
-
+docker compose exec web bin/tootctl accounts create \
+  "${ADMIN_USERNAME}" \
+  --email "${ADMIN_EMAIL}" \
+  --confirmed \
+  --role Owner
 echo ""
 echo "============================================"
 echo "Admin account created ✅"
