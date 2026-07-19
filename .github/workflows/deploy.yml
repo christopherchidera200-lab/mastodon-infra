@@ -36,7 +36,11 @@ jobs:
           export ECR_WEB_IMAGE="dummy/web:latest"
           export ECR_STREAMING_IMAGE="dummy/streaming:latest"
           export DB_PASSWORD="dummy"
+          # Create a placeholder .env.production so config validation doesn't
+          # fail on a file that only exists on the real EC2 server
+          touch compose/.env.production
           docker compose -f compose/docker-compose.yml config --quiet
+          rm compose/.env.production
           echo "Docker Compose syntax valid ✅"
 
       - name: Validate nginx config syntax
