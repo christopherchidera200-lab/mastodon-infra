@@ -2,12 +2,12 @@ name: "Infrastructure — Terraform"
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - "terraform/**"
   workflow_dispatch:
