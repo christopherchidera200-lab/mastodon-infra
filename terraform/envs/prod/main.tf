@@ -1,5 +1,14 @@
 terraform {
   required_version = ">= 1.7"
+
+  backend "s3" {
+    bucket         = "mastodon-tfstate-873871686800"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "mastodon-tfstate-lock"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -11,7 +20,6 @@ terraform {
     }
   }
 }
-
 provider "aws" {
   region = var.aws_region
 }
