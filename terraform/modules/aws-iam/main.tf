@@ -65,6 +65,21 @@ resource "aws_iam_role_policy" "github_actions" {
         Effect   = "Allow"
         Action   = ["cloudfront:CreateInvalidation"]
         Resource = "*"
+      },
+      {
+        Sid    = "TFStateAccess"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::mastodon-tfstate-873871686800",
+          "arn:aws:s3:::mastodon-tfstate-873871686800/*"
+        ]
+      },
+      {
+        Sid      = "TFLockAccess"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+        Resource = "arn:aws:dynamodb:us-east-1:873871686800:table/mastodon-tfstate-lock"
       }
     ]
   })
