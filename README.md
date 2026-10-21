@@ -48,7 +48,7 @@ SSH_PUBLIC_KEY        contents of mastodon_key.pub
 SSH_PRIVATE_KEY       contents of mastodon_key (needed for deploy pipeline)
 EC2_PUBLIC_IP         from: terraform output ec2_public_ip
 MASTODON_DOMAIN       mastodon.dpdns.org
-MASTODON_EMAIL        christopherchidera200@gmail.com
+MASTODON_EMAIL        chr*************0@gmail.com
 MASTODON_VERSION      v4.6.2
 GITHUB_REPO           christopherchidera200-lab/mastodon
 DB_PASSWORD           your chosen database password
