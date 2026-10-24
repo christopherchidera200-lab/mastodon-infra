@@ -33,59 +33,6 @@ resource "aws_iam_role" "github_actions" {
   })
 }
 
-resource "aws_iam_role_policy" "github_actions" {
-  name = "mastodon-cicd-policy"
-  role = aws_iam_role.github_actions.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "S3Access"
-        Effect = "Allow"
-        Action = ["s3:*"]
-        Resource = [
-          "arn:aws:s3:::mastodon-media-${var.suffix}",
-          "arn:aws:s3:::mastodon-media-${var.suffix}/*"
-        ]
-      },
-      {
-        Sid      = "ECRAccess"
-        Effect   = "Allow"
-        Action   = ["ecr:*"]
-        Resource = "*"
-      },
-      {
-        Sid      = "EC2Describe"
-        Effect   = "Allow"
-        Action   = ["ec2:Describe*"]
-        Resource = "*"
-      },
-      {
-        Sid      = "CloudFrontAccess"
-        Effect   = "Allow"
-        Action   = ["cloudfront:CreateInvalidation"]
-        Resource = "*"
-      },
-      {
-        Sid    = "TFStateAccess"
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
-        Resource = [
-          "arn:aws:s3:::mastodon-tfstate-873871686800",
-          "arn:aws:s3:::mastodon-tfstate-873871686800/*"
-        ]
-      },
-      {
-        Sid      = "TFLockAccess"
-        Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
-        Resource = "arn:aws:dynamodb:us-east-1:873871686800:table/mastodon-tfstate-lock"
-      }
-    ]
-  })
-}
-
 # ── App IAM User — Mastodon on EC2 accesses S3 + SES ─────────
 resource "aws_iam_user" "mastodon_app" {
   name = "mastodon-app-${var.suffix}"
