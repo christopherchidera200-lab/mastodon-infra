@@ -64,18 +64,10 @@ jobs:
     environment: production
     if: github.ref == 'refs/heads/master'
     permissions:
-      id-token: write
       contents: read
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
-          aws-region: us-east-1
-          role-session-name: mastodon-deploy-${{ github.run_number }}
 
       - name: Write SSH private key
         run: |

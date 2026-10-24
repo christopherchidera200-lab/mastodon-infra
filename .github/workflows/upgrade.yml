@@ -29,7 +29,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          role-to-assume: ${{ secrets.DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
           role-session-name: mastodon-upgrade-${{ github.run_number }}
 
