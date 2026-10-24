@@ -1,7 +1,7 @@
-variable "suffix"         {}
+variable "suffix" {}
 variable "aws_account_id" {}
-variable "aws_region"     {}
-variable "github_repo"    {}
+variable "aws_region" {}
+variable "github_repo" {}
 
 # ── OIDC provider — GitHub Actions authenticates to AWS ──────
 resource "aws_iam_openid_connect_provider" "github" {
@@ -23,9 +23,10 @@ resource "aws_iam_role" "github_actions" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:*"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_repo}:pull_request",
+            "repo:${var.github_repo}:ref:refs/heads/master",
+          ]
         }
       }
     }]
@@ -40,9 +41,9 @@ resource "aws_iam_role_policy" "github_actions" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "S3Access"
-        Effect   = "Allow"
-        Action   = ["s3:*"]
+        Sid    = "S3Access"
+        Effect = "Allow"
+        Action = ["s3:*"]
         Resource = [
           "arn:aws:s3:::mastodon-media-${var.suffix}",
           "arn:aws:s3:::mastodon-media-${var.suffix}/*"
@@ -104,21 +105,21 @@ resource "aws_iam_user_policy" "mastodon_app" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "S3MediaAccess"
-        Effect = "Allow"
-        Action = ["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:PutObjectAcl"]
+        Sid      = "S3MediaAccess"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:PutObjectAcl"]
         Resource = "arn:aws:s3:::mastodon-media-${var.suffix}/*"
       },
       {
-        Sid    = "S3BucketList"
-        Effect = "Allow"
-        Action = ["s3:ListBucket","s3:GetBucketLocation"]
+        Sid      = "S3BucketList"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
         Resource = "arn:aws:s3:::mastodon-media-${var.suffix}"
       },
       {
-        Sid    = "SESSend"
-        Effect = "Allow"
-        Action = ["ses:SendEmail","ses:SendRawEmail"]
+        Sid      = "SESSend"
+        Effect   = "Allow"
+        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
         Resource = "*"
       },
       {
@@ -149,8 +150,8 @@ resource "aws_iam_user_policy" "mastodon_app" {
 }
 
 output "github_actions_role_arn" { value = aws_iam_role.github_actions.arn }
-output "mastodon_user_arn"       { value = aws_iam_user.mastodon_app.arn }
-output "access_key_id"           { value = aws_iam_access_key.mastodon_app.id }
+output "mastodon_user_arn" { value = aws_iam_user.mastodon_app.arn }
+output "access_key_id" { value = aws_iam_access_key.mastodon_app.id }
 output "secret_access_key" {
   value     = aws_iam_access_key.mastodon_app.secret
   sensitive = true
