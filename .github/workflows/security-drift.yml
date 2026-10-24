@@ -70,7 +70,7 @@ jobs:
             -var="mastodon_domain=${{ secrets.MASTODON_DOMAIN }}" \
             -var="mastodon_email=${{ secrets.MASTODON_EMAIL }}" \
             -var="mastodon_version=${{ secrets.MASTODON_VERSION }}" \
-            -var="github_repo=${{ secrets.GITHUB_REPO }}" \
+            -var="github_repo=${{ github.repository }}" \
             -var="db_password=${{ secrets.DB_PASSWORD }}"
         continue-on-error: true
 
