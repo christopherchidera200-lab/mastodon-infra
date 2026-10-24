@@ -1,7 +1,7 @@
-variable "suffix"          {}
+variable "suffix" {}
 variable "mastodon_domain" {}
-variable "iam_user_arn"    {}
-variable "tags"            { type = map(string) }
+variable "iam_user_arn" {}
+variable "tags" { type = map(string) }
 
 resource "aws_s3_bucket" "media" {
   bucket = "mastodon-media-${var.suffix}"
@@ -119,13 +119,13 @@ resource "aws_s3_bucket_policy" "media" {
         Sid       = "AllowMastodonApp"
         Effect    = "Allow"
         Principal = { AWS = var.iam_user_arn }
-        Action    = ["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:PutObjectAcl"]
+        Action    = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:PutObjectAcl"]
         Resource  = "${aws_s3_bucket.media.arn}/*"
       }
     ]
   })
 }
 
-output "bucket_name"       { value = aws_s3_bucket.media.id }
+output "bucket_name" { value = aws_s3_bucket.media.id }
 output "cloudfront_domain" { value = aws_cloudfront_distribution.media.domain_name }
-output "cloudfront_id"     { value = aws_cloudfront_distribution.media.id }
+output "cloudfront_id" { value = aws_cloudfront_distribution.media.id }

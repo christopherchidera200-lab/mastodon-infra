@@ -1,6 +1,6 @@
-variable "suffix"           {}
+variable "suffix" {}
 variable "mastodon_version" {}
-variable "tags"             { type = map(string) }
+variable "tags" { type = map(string) }
 
 resource "aws_ecr_repository" "web" {
   name                 = "mastodon/web"
@@ -40,6 +40,6 @@ resource "aws_ecr_lifecycle_policy" "streaming" {
   })
 }
 
-output "web_repo_url"       { value = aws_ecr_repository.web.repository_url }
+output "web_repo_url" { value = aws_ecr_repository.web.repository_url }
 output "streaming_repo_url" { value = aws_ecr_repository.streaming.repository_url }
-output "registry_id"        { value = aws_ecr_repository.web.registry_id }
+output "registry_id" { value = aws_ecr_repository.web.registry_id }

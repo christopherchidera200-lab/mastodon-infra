@@ -1,6 +1,6 @@
 variable "mastodon_domain" {}
-variable "mastodon_email"  {}
-variable "suffix"          {}
+variable "mastodon_email" {}
+variable "suffix" {}
 
 resource "aws_ses_domain_identity" "mastodon" {
   domain = var.mastodon_domain
@@ -37,8 +37,8 @@ resource "aws_iam_user_policy" "ses_smtp" {
 }
 
 output "domain_verification_token" { value = aws_ses_domain_identity.mastodon.verification_token }
-output "dkim_tokens"               { value = aws_ses_domain_dkim.mastodon.dkim_tokens }
-output "smtp_username"             { value = aws_iam_access_key.ses_smtp.id }
+output "dkim_tokens" { value = aws_ses_domain_dkim.mastodon.dkim_tokens }
+output "smtp_username" { value = aws_iam_access_key.ses_smtp.id }
 output "smtp_password" {
   value     = aws_iam_access_key.ses_smtp.ses_smtp_password_v4
   sensitive = true

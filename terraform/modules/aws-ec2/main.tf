@@ -1,10 +1,10 @@
-variable "suffix"              {}
-variable "instance_type"       {}
-variable "ssh_key_name"        {}
+variable "suffix" {}
+variable "instance_type" {}
+variable "ssh_key_name" {}
 variable "ssh_public_key_path" {}
-variable "security_group_id"   {}
-variable "mastodon_domain"     {}
-variable "tags"                { type = map(string) }
+variable "security_group_id" {}
+variable "mastodon_domain" {}
+variable "tags" { type = map(string) }
 
 # ── Import SSH public key ─────────────────────────────────────
 resource "aws_key_pair" "mastodon" {
@@ -16,7 +16,7 @@ resource "aws_key_pair" "mastodon" {
 # ── Latest Ubuntu 22.04 LTS AMI (us-east-1, x86_64) ─────────
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]   # Canonical
+  owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
@@ -32,7 +32,7 @@ data "aws_ami" "ubuntu" {
 # ── EC2 Instance ─────────────────────────────────────────────
 resource "aws_instance" "mastodon" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type   # t3.small — 2 vCPU, 2 GB RAM
+  instance_type          = var.instance_type # t3.small — 2 vCPU, 2 GB RAM
   key_name               = aws_key_pair.mastodon.key_name
   vpc_security_group_ids = [var.security_group_id]
 
@@ -64,6 +64,6 @@ resource "aws_eip" "mastodon" {
   tags     = merge(var.tags, { Name = "mastodon-eip-${var.suffix}" })
 }
 
-output "public_ip"  { value = aws_eip.mastodon.public_ip }
+output "public_ip" { value = aws_eip.mastodon.public_ip }
 output "public_dns" { value = aws_instance.mastodon.public_dns }
-output "instance_id"{ value = aws_instance.mastodon.id }
+output "instance_id" { value = aws_instance.mastodon.id }

@@ -1,5 +1,5 @@
 variable "suffix" {}
-variable "tags"   { type = map(string) }
+variable "tags" { type = map(string) }
 
 resource "aws_security_group" "mastodon" {
   name        = "mastodon-sg-${var.suffix}"
