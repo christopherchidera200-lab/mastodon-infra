@@ -1,0 +1,53 @@
+name: "OIDC lab (temporary)"
+
+on:
+  push:
+    branches: [master, lab-test]
+  pull_request:
+    branches: [master]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  no-environment:
+    name: "No environment / ${{ matrix.label }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: plan, arn: "arn:aws:iam::873871686800:role/mastodon-github-actions-lab" }
+          - { label: deploy, arn: "arn:aws:iam::873871686800:role/mastodon-github-deploy-lab" }
+    steps:
+      - name: Try to assume the role
+        id: assume
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ matrix.arn }}
+          aws-region: us-east-1
+      - name: Result
+        run: echo "RESULT event=${{ github.event_name }} ref=${{ github.ref }} role=${{ matrix.label }} outcome=${{ steps.assume.outcome }}"
+
+  with-environment:
+    name: "Environment production / ${{ matrix.label }}"
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: plan, arn: "arn:aws:iam::873871686800:role/mastodon-github-actions-lab" }
+          - { label: deploy, arn: "arn:aws:iam::873871686800:role/mastodon-github-deploy-lab" }
+    steps:
+      - name: Try to assume the role
+        id: assume
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ matrix.arn }}
+          aws-region: us-east-1
+      - name: Result
+        run: echo "RESULT event=${{ github.event_name }} ref=${{ github.ref }} role=${{ matrix.label }} outcome=${{ steps.assume.outcome }}"
