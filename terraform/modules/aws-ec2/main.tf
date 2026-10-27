@@ -52,8 +52,9 @@ resource "aws_instance" "mastodon" {
   tags = merge(var.tags, { Name = "mastodon-server-${var.suffix}" })
 
   lifecycle {
-    # Prevent accidental termination of running instance
-    prevent_destroy = false
+    # A newer Ubuntu image must not silently replace the server and its disk.
+    # To adopt a new image on purpose, use: terraform apply -replace=<address>
+    ignore_changes = [ami]
   }
 }
 
