@@ -59,11 +59,12 @@ module "aws_ec2" {
 
 # ── IAM — OIDC for GitHub Actions + app user for S3 ──────────
 module "aws_iam" {
-  source         = "../../modules/aws-iam"
-  suffix         = local.suffix
-  aws_account_id = var.aws_account_id
-  aws_region     = var.aws_region
-  github_repo    = var.github_repo
+  source           = "../../modules/aws-iam"
+  suffix           = local.suffix
+  aws_account_id   = var.aws_account_id
+  aws_region       = var.aws_region
+  github_repo      = var.github_repo
+  github_oidc_repo = var.github_oidc_repo
 }
 
 # ── S3 + CloudFront ───────────────────────────────────────────

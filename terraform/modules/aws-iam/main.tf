@@ -2,6 +2,7 @@ variable "suffix" {}
 variable "aws_account_id" {}
 variable "aws_region" {}
 variable "github_repo" {}
+variable "github_oidc_repo" {}
 
 # ── OIDC provider — GitHub Actions authenticates to AWS ──────
 resource "aws_iam_openid_connect_provider" "github" {
@@ -24,8 +25,8 @@ resource "aws_iam_role" "github_actions" {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           "token.actions.githubusercontent.com:sub" = [
-            "repo:${var.github_repo}:pull_request",
-            "repo:${var.github_repo}:ref:refs/heads/master",
+            "repo:${var.github_oidc_repo}:pull_request",
+            "repo:${var.github_oidc_repo}:ref:refs/heads/master",
           ]
         }
       }

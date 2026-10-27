@@ -11,3 +11,9 @@ variable "db_password" {
   type      = string
   sensitive = true
 }
+
+variable "github_oidc_repo" {
+  type        = string
+  description = "GitHub OIDC subject prefix with numeric IDs: OWNER@OWNER_ID/REPO@REPO_ID"
+  default     = "christopherchidera200-lab@279787614/mastodon-infra@1431588689"
+}
