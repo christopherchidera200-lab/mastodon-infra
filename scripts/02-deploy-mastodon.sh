@@ -210,8 +210,16 @@ docker compose up -d db redis
 echo "Waiting 30 seconds for PostgreSQL to be ready..."
 sleep 30
 
-docker compose run --rm web bundle exec rails db:setup
-echo "Database initialised ✅"
+if [ -n "${RESTORE_FROM:-}" ]; then
+  echo "Restoring database from ${RESTORE_FROM} ..."
+  [ -f "${RESTORE_FROM}" ] || { echo "ERROR: ${RESTORE_FROM} not found" >&2; exit 1; }
+  gzip -dc "${RESTORE_FROM}" | docker compose exec -T db psql -U mastodon -d mastodon_production -v ON_ERROR_STOP=1 --single-transaction
+  docker compose run --rm web bundle exec rails db:migrate
+  echo "Database restored ✅"
+else
+  docker compose run --rm web bundle exec rails db:setup
+  echo "Database initialised ✅"
+fi
 
 # ── Step 8: Start all services ────────────────────────────────
 echo "[8/9] Starting all Mastodon services..."
