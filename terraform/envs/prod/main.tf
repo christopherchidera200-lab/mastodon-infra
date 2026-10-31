@@ -47,24 +47,26 @@ module "aws_sg" {
 
 # ── EC2 Instance ──────────────────────────────────────────────
 module "aws_ec2" {
-  source              = "../../modules/aws-ec2"
-  suffix              = local.suffix
-  instance_type       = var.instance_type
-  ssh_key_name        = var.ssh_key_name
-  ssh_public_key_path = var.ssh_public_key_path
-  security_group_id   = module.aws_sg.security_group_id
-  mastodon_domain     = var.mastodon_domain
-  tags                = local.tags
+  source               = "../../modules/aws-ec2"
+  suffix               = local.suffix
+  instance_type        = var.instance_type
+  ssh_key_name         = var.ssh_key_name
+  ssh_public_key_path  = var.ssh_public_key_path
+  security_group_id    = module.aws_sg.security_group_id
+  mastodon_domain      = var.mastodon_domain
+  iam_instance_profile = module.aws_iam.server_instance_profile_name
+  tags                 = local.tags
 }
 
 # ── IAM — OIDC for GitHub Actions + app user for S3 ──────────
 module "aws_iam" {
-  source           = "../../modules/aws-iam"
-  suffix           = local.suffix
-  aws_account_id   = var.aws_account_id
-  aws_region       = var.aws_region
-  github_repo      = var.github_repo
-  github_oidc_repo = var.github_oidc_repo
+  source            = "../../modules/aws-iam"
+  suffix            = local.suffix
+  aws_account_id    = var.aws_account_id
+  aws_region        = var.aws_region
+  github_repo       = var.github_repo
+  github_oidc_repo  = var.github_oidc_repo
+  backup_bucket_arn = module.aws_s3_backup.bucket_arn
 }
 
 # ── S3 + CloudFront ───────────────────────────────────────────
@@ -90,4 +92,10 @@ module "aws_ecr" {
   suffix           = local.suffix
   mastodon_version = var.mastodon_version
   tags             = local.tags
+}
+
+# ── Backup bucket ─────────────────────────────────────────────
+module "aws_s3_backup" {
+  source = "../../modules/aws-s3-backup"
+  suffix = local.suffix
 }

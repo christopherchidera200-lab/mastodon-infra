@@ -5,6 +5,7 @@ variable "ssh_public_key_path" {}
 variable "security_group_id" {}
 variable "mastodon_domain" {}
 variable "tags" { type = map(string) }
+variable "iam_instance_profile" {}
 
 # ── Import SSH public key ─────────────────────────────────────
 resource "aws_key_pair" "mastodon" {
@@ -35,6 +36,14 @@ resource "aws_instance" "mastodon" {
   instance_type          = var.instance_type # t3.small — 2 vCPU, 2 GB RAM
   key_name               = aws_key_pair.mastodon.key_name
   vpc_security_group_ids = [var.security_group_id]
+  iam_instance_profile   = var.iam_instance_profile
+
+  # IMDSv2 only: anything on the server needs a session token to read the role's credentials.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   # 30 GB root volume — stores Docker images, PostgreSQL data, Redis data
   root_block_device {
