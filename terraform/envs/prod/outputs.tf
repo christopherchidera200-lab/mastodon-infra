@@ -115,3 +115,8 @@ output "next_steps" {
     ============================================================
   EOT
 }
+
+output "backup_bucket_name" {
+  description = "Backup bucket; set as BACKUP_BUCKET for scripts/05-backup.sh"
+  value       = module.aws_s3_backup.bucket_name
+}
