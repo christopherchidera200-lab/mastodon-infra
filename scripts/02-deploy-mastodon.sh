@@ -54,6 +54,22 @@ docker push "${ECR_STREAMING_IMAGE}"
 echo "Images in ECR ✅"
 
 # ── Step 3: Generate Mastodon secrets ─────────────────────────
+SECRETS_FILE="${SECRETS_FILE:-/opt/mastodon/secrets/mastodon-secrets-KEEP-SAFE.txt}"
+# Read one NAME=value line from the secrets file (the value may itself contain "=").
+secret_from_file() { grep "^$1=" "${SECRETS_FILE}" | cut -d= -f2- || true; }
+
+if [ -f "${SECRETS_FILE}" ]; then
+  echo "[3/9] Reusing existing secrets from ${SECRETS_FILE} (generating nothing new)..."
+  SECRET_KEY_BASE=$(secret_from_file SECRET_KEY_BASE)
+  AR_PRIMARY_KEY=$(secret_from_file ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY)
+  AR_DETERMINISTIC_KEY=$(secret_from_file ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY)
+  AR_KEY_DERIVATION_SALT=$(secret_from_file ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT)
+  VAPID_PRIVATE_KEY=$(secret_from_file VAPID_PRIVATE_KEY)
+  VAPID_PUBLIC_KEY=$(secret_from_file VAPID_PUBLIC_KEY)
+  for v in SECRET_KEY_BASE AR_PRIMARY_KEY AR_DETERMINISTIC_KEY AR_KEY_DERIVATION_SALT VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY; do
+    [ -n "${!v}" ] || { echo "ERROR: ${v} is missing from ${SECRETS_FILE}" >&2; exit 1; }
+  done
+else
 echo "[3/9] Generating Mastodon application secrets..."
 SECRET_KEY_BASE=$(docker run --rm "${ECR_WEB_IMAGE}" bundle exec rails secret)
 
@@ -80,6 +96,7 @@ DB_PASSWORD=${DB_PASSWORD}
 SECRETS
 chmod 600 /opt/mastodon/secrets/mastodon-secrets-KEEP-SAFE.txt
 echo "Secrets generated and saved to /opt/mastodon/secrets/mastodon-secrets-KEEP-SAFE.txt ✅"
+fi
 
 # ── Step 4: Create .env.production ───────────────────────────
 echo "[4/9] Creating .env.production..."
