@@ -183,6 +183,7 @@ services:
   certbot:
     image: certbot/certbot
     container_name: mastodon_certbot
+    restart: always
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_certs:/etc/letsencrypt

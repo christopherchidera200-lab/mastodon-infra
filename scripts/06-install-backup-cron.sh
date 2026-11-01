@@ -15,6 +15,8 @@ PATH=/usr/local/bin:/usr/bin:/bin
 BACKUP_BUCKET=${BACKUP_BUCKET}
 # 02:00 UTC = 03:00 in Nigeria (UTC+1, no daylight saving)
 0 2 * * * ubuntu ${SCRIPT} >> ${LOG} 2>&1
+# 03:30 UTC: make Nginx pick up any certificate certbot renewed
+30 3 * * * ubuntu docker exec mastodon_nginx nginx -s reload >> ${LOG} 2>&1
 CRON
 chmod 644 "${CRON_FILE}"
 echo "Installed ${CRON_FILE}"
